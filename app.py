@@ -1,6 +1,6 @@
 # app.py
 from flask import Flask, jsonify, request, send_from_directory, render_template
-from db import get_connection, ensure_db
+from db import get_connection, ensure_db, generate_student_id
 from qrcode_utils import generate_qr_for_ticket, QRCODE_DIR
 import os
 from datetime import datetime
@@ -24,12 +24,12 @@ def classes_handler():
     conn = get_connection()
     cur = conn.cursor()
     if request.method == "GET":
-        cur.execute("SELECT id, name, description FROM classes")
+        cur.execute("SELECT id, name, teacher, description FROM classes")
         rows = cur.fetchall()
         conn.close()
-        return jsonify([{"id":r[0],"name":r[1],"description":r[2]} for r in rows])
+        return jsonify([{"id":r[0],"name":r[1],"teacher":r[2],"description":r[3]} for r in rows])
     data = request.json
-    cur.execute("INSERT INTO classes (name, description) VALUES (?,?)", (data.get("name"), data.get("description")))
+    cur.execute("INSERT INTO classes (id, name, teacher, description) VALUES (?,?,?,?)", (data.get("id"), data.get("name"), data.get("teacher"), data.get("description")))
     conn.commit()
     new_id = cur.lastrowid
     conn.close()
@@ -41,7 +41,7 @@ def class_modify(class_id):
     cur = conn.cursor()
     if request.method == "PUT":
         data = request.json
-        cur.execute("UPDATE classes SET name=?, description=? WHERE id=?", (data.get("name"), data.get("description"), class_id))
+        cur.execute("UPDATE classes SET name=?, SET teacher=?, description=? WHERE id=?", (data.get("name"), data.get("teacher"), data.get("description"), class_id))
         conn.commit()
         conn.close()
         return jsonify({"ok": True})
@@ -68,8 +68,10 @@ def students_handler():
             })
         return jsonify(res)
     data = request.json
-    cur.execute("INSERT INTO students (name, phone, class_id) VALUES (?,?,?)",
-                (data.get("name"), data.get("phone"), data.get("class_id")))
+    class_id = data.get("class_id")
+    student_id = generate_student_id(conn, class_id)
+    cur.execute("INSERT INTO students (id, name, phone, class_id) VALUES (?,?,?,?)",
+                (student_id, data.get("name"), data.get("phone"), class_id))
     conn.commit()
     new_id = cur.lastrowid
     conn.close()

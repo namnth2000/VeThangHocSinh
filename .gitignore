@@ -4,3 +4,4 @@ dist/
 qrcodes/
 *.zip
 *.spec
+__pycache__/

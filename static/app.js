@@ -51,11 +51,12 @@ function closeModal() {
 async function loadClasses() {
   const res = await fetch('/api/classes');
   const data = await res.json();
-  let html = `<table class="table"><thead><tr><th>ID</th><th>Tên</th><th>Mô tả</th><th>Hành động</th></tr></thead><tbody>`;
+  let html = `<table class="table"><thead><tr><th>ID</th><th>Tên lớp</th><th>Giáo viên</th><th>Mô tả</th><th>Hành động</th></tr></thead><tbody>`;
   data.forEach(c => {
     html += `<tr>
       <td>${c.id}</td>
       <td>${c.name}</td>
+      <td>${c.teacher}</td>
       <td>${c.description || ''}</td>
       <td>
         <button class="small-btn btn-edit" onclick="showEditClass(${c.id})">Sửa</button>
@@ -72,7 +73,9 @@ function showEditClass(id) {
     .then(list => {
       const c = list.find(x => x.id === id);
       const html = `<h3>Sửa lớp</h3>
-        <div class="form-row"><label>Tên</label><input id="class-name" value="${c.name}"></div>
+        <div class="form-row"><label>ID</label><input id="class-id" value="${c.id}"></div>
+        <div class="form-row"><label>Tên lớp</label><input id="class-name" value="${c.name}"></div>
+        <div class="form-row"><label>Giáo viên</label><input id="class-teacher" value="${c.teacher}"></div>
         <div class="form-row"><label>Mô tả</label><input id="class-desc" value="${c.description || ''}"></div>
         <div style="text-align:right"><button class="btn" onclick="saveEditClass(${id})">Lưu</button></div>`;
       openModal(html);
@@ -81,8 +84,9 @@ function showEditClass(id) {
 
 function saveEditClass(id) {
   const name = el('class-name').value;
+  const teacher = el('class-teacher').value;
   const desc = el('class-desc').value;
-  fetch(`/api/classes/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, description:desc}) })
+  fetch(`/api/classes/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, name, teacher, description:desc}) })
     .then(()=>{ closeModal(); loadClasses(); });
 }
 
@@ -92,14 +96,22 @@ function delClass(id) {
 }
 
 // ------------ STUDENTS -------------
-async function loadStudents() {
-  const res = await fetch('/api/students');
+async function loadStudents(classFilter="") {
+  let url = '/api/students';
+  if (classFilter) url += '?class_id=' + classFilter;
+  const res = await fetch(url);
   const data = await res.json();
-  // load classes for name mapping
+
   const classesRes = await fetch('/api/classes');
   const classes = await classesRes.json();
 
-  let html = `<table class="table"><thead><tr><th>ID</th><th>Tên</th><th>Lớp</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody>`;
+  let options = `<option value="">Tất cả lớp</option>`;
+  classes.forEach(c => options += `<option value="${c.id}" ${c.id==classFilter?'selected':''}>${c.name}</option>`);
+  let filterHtml = `<div><label>Lọc theo lớp:</label><select onchange="loadStudents(this.value)">${options}</select>
+    <button onclick="downloadTemplate()">Tải file mẫu</button>
+    <input type="file" id="importFile" onchange="importStudents(this.files[0])"></div>`;
+
+  let html = filterHtml + `<table class="table"><thead><tr><th>ID</th><th>Tên</th><th>Lớp</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody>`;
   data.forEach(s => {
     html += `<tr>
       <td>${s.id}</td>
@@ -117,6 +129,18 @@ async function loadStudents() {
   el('table-wrap').innerHTML = html;
 }
 
+function downloadTemplate() {
+  window.location.href = '/static/template.xlsx';
+}
+
+function importStudents(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  fetch('/api/students/import', { method:'POST', body:formData })
+    .then(r=>r.json())
+    .then(()=> loadStudents());
+}
+
 function openAddModal() {
   if (currentView === 'students') showAddStudent();
   else if (currentView === 'classes') showAddClass();
@@ -126,17 +150,24 @@ function openAddModal() {
 
 function showAddClass() {
   const html = `<h3>Thêm lớp</h3>
-    <div class="form-row"><label>Tên</label><input id="class-name"></div>
+    <div class="form-row"><label>ID</label><input id="class-id"></div>
+    <div class="form-row"><label>Tên lớp</label><input id="class-name"></div>
+    <div class="form-row"><label>Giáo viên</label><input id="class-teacher"></div>
     <div class="form-row"><label>Mô tả</label><input id="class-desc"></div>
     <div style="text-align:right"><button class="btn" onclick="saveNewClass()">Tạo</button></div>`;
   openModal(html);
 }
 
 function saveNewClass() {
+  const id = el('class-id').value;
   const name = el('class-name').value;
+  const teacher = el('class-teacher').value;
   const desc = el('class-desc').value;
-  fetch('/api/classes', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, description:desc}) })
-    .then(()=> { closeModal(); loadClasses(); });
+  fetch('/api/classes', { 
+    method:'POST', 
+    headers:{'Content-Type':'application/json'}, 
+    body: JSON.stringify({id, name, teacher, description:desc}) 
+  }).then(()=> { closeModal(); loadClasses(); });
 }
 
 function showAddStudent() {
@@ -204,7 +235,8 @@ function viewStudent(id) {
       else {
         myTickets.forEach(t => {
           tHtml += `<div>Tháng: ${t.month} - Trạng thái: ${t.is_paid ? 'Đã đóng' : 'Chưa đóng'} 
-            ${t.qr_filename ? `<button class="small-btn btn-view" onclick="openQR('${t.qr_filename}')">Xem QR</button>` : ''}</div>`;
+            ${t.qr_filename ? `<button class="small-btn btn-view" onclick="openQR('${t.qr_filename}')">QR</button>` : ''}
+            <button class="small-btn btn-del" onclick="delTicket(${t.id})">Xóa vé</button></div>`;
         });
       }
 
@@ -217,6 +249,11 @@ function viewStudent(id) {
       openModal(html);
     });
   });
+}
+
+function delTicket(id) {
+  if (!confirm('Xóa vé này?')) return;
+  fetch(`/api/tickets/${id}`, {method:'DELETE'}).then(()=> loadTickets());
 }
 
 function openQR(filename) {
@@ -268,7 +305,7 @@ function createTicket() {
   const month = el('ticket-month').value;
   const is_paid = el('ticket-paid').value === '1';
   if (!student_id || !month) { alert('Chọn học sinh và tháng'); return; }
-  fetch('/api/tickets', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({student_id: Number(student_id), month, is_paid}) })
+  fetch('/api/tickets', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({student_id: student_id, month, is_paid}) })
     .then(r=>r.json())
     .then(resp => { 
       if (resp.error) alert('Lỗi: ' + resp.error);
