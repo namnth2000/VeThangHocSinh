@@ -5,3 +5,4 @@ qrcodes/
 *.zip
 *.spec
 __pycache__/
+data/students.db

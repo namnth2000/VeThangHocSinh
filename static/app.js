@@ -51,7 +51,12 @@ function closeModal() {
 async function loadClasses() {
   const res = await fetch('/api/classes');
   const data = await res.json();
-  let html = `<table class="table"><thead><tr><th>ID</th><th>Tên lớp</th><th>Giáo viên</th><th>Mô tả</th><th>Hành động</th></tr></thead><tbody>`;
+  let html = `<table class="table">
+    <thead>
+      <tr><th>ID</th><th>Tên lớp</th><th>Giáo viên</th><th>Mô tả</th><th>Hành động</th></tr>
+    </thead>
+    <tbody>`;
+  
   data.forEach(c => {
     html += `<tr>
       <td>${c.id}</td>
@@ -59,26 +64,36 @@ async function loadClasses() {
       <td>${c.teacher}</td>
       <td>${c.description || ''}</td>
       <td>
-        <button class="small-btn btn-edit" onclick="showEditClass(${c.id})">Sửa</button>
-        <button class="small-btn btn-del" onclick="delClass(${c.id})">Xóa</button>
+        <button class="small-btn btn-edit" onclick="showEditClass('${c.id}')">Sửa</button>
+        <button class="small-btn btn-del" onclick="delClass('${c.id}')">Xóa</button>
       </td></tr>`;
   });
+
   html += `</tbody></table>`;
   el('table-wrap').innerHTML = html;
 }
 
 function showEditClass(id) {
+  console.log("Go into showEditClass");
   fetch(`/api/classes`)
     .then(r => r.json())
     .then(list => {
       const c = list.find(x => x.id === id);
-      const html = `<h3>Sửa lớp</h3>
-        <div class="form-row"><label>ID</label><input id="class-id" value="${c.id}"></div>
-        <div class="form-row"><label>Tên lớp</label><input id="class-name" value="${c.name}"></div>
-        <div class="form-row"><label>Giáo viên</label><input id="class-teacher" value="${c.teacher}"></div>
-        <div class="form-row"><label>Mô tả</label><input id="class-desc" value="${c.description || ''}"></div>
-        <div style="text-align:right"><button class="btn" onclick="saveEditClass(${id})">Lưu</button></div>`;
+      const html = `
+        <h3>Sửa lớp</h3>
+        <div class="form-row"><label>ID</label><input id="class-id"></div>
+        <div class="form-row"><label>Tên lớp</label><input id="class-name"></div>
+        <div class="form-row"><label>Giáo viên</label><input id="class-teacher"></div>
+        <div class="form-row"><label>Mô tả</label><input id="class-desc"></div>
+        <div style="text-align:right"><button class="btn" onclick="saveEditClass('${id}')">Lưu</button></div>
+      `;
       openModal(html);
+
+      // Safely set values after rendering
+      document.getElementById('class-id').value = c.id;
+      document.getElementById('class-name').value = c.name;
+      document.getElementById('class-teacher').value = c.teacher;
+      document.getElementById('class-desc').value = c.description || '';
     });
 }
 
@@ -86,8 +101,16 @@ function saveEditClass(id) {
   const name = el('class-name').value;
   const teacher = el('class-teacher').value;
   const desc = el('class-desc').value;
-  fetch(`/api/classes/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, name, teacher, description:desc}) })
-    .then(()=>{ closeModal(); loadClasses(); });
+
+  fetch(`/api/classes/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, name, teacher, description: desc })
+  })
+  .then(() => {
+    closeModal();
+    loadClasses();
+  });
 }
 
 function delClass(id) {
@@ -107,11 +130,12 @@ async function loadStudents(classFilter="") {
 
   let options = `<option value="">Tất cả lớp</option>`;
   classes.forEach(c => options += `<option value="${c.id}" ${c.id==classFilter?'selected':''}>${c.name}</option>`);
-  let filterHtml = `<div><label>Lọc theo lớp:</label><select onchange="loadStudents(this.value)">${options}</select>
-    <button onclick="downloadTemplate()">Tải file mẫu</button>
+  let filterHtml = `<div><label>Lọc theo lớp: </label><select onchange="loadStudents(this.value)">${options}</select></div>`;
+
+  filterHtml = filterHtml + `<br>` + `<div><label>Nhập học sinh từ file: </label><button onclick="downloadTemplate()">Tải file mẫu</button>
     <input type="file" id="importFile" onchange="importStudents(this.files[0])"></div>`;
 
-  let html = filterHtml + `<table class="table"><thead><tr><th>ID</th><th>Tên</th><th>Lớp</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody>`;
+  let html = filterHtml + `<br>` + `<table class="table"><thead><tr><th>ID</th><th>Tên</th><th>Lớp</th><th>SĐT</th><th>Hành động</th></tr></thead><tbody>`;
   data.forEach(s => {
     html += `<tr>
       <td>${s.id}</td>
@@ -119,9 +143,9 @@ async function loadStudents(classFilter="") {
       <td>${s.class_name || ''}</td>
       <td>${s.phone || ''}</td>
       <td>
-        <button class="small-btn btn-view" onclick="viewStudent(${s.id})">Xem</button>
-        <button class="small-btn btn-edit" onclick="editStudent(${s.id})">Sửa</button>
-        <button class="small-btn btn-del" onclick="delStudent(${s.id})">Xóa</button>
+        <button class="small-btn btn-view" onclick="viewStudent('${s.id}')">Xem</button>
+        <button class="small-btn btn-edit" onclick="editStudent('${s.id}')">Sửa</button>
+        <button class="small-btn btn-del" onclick="delStudent('${s.id}')">Xóa</button>
       </td>
     </tr>`;
   });
@@ -163,6 +187,7 @@ function saveNewClass() {
   const name = el('class-name').value;
   const teacher = el('class-teacher').value;
   const desc = el('class-desc').value;
+  if (!id || !name || !teacher) { alert('Nhập ID, tên lớp và tên giáo viên'); return; }
   fetch('/api/classes', { 
     method:'POST', 
     headers:{'Content-Type':'application/json'}, 
@@ -188,6 +213,7 @@ function saveNewStudent() {
   const name = el('stu-name').value;
   const phone = el('stu-phone').value;
   const class_id = el('stu-class').value || null;
+  if (!name || !class_id) { alert('Nhập tên học sinh và lớp'); return; }
   fetch('/api/students', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, phone, class_id}) })
     .then(()=> { closeModal(); loadStudents(); });
 }
@@ -202,7 +228,7 @@ function editStudent(id) {
         <div class="form-row"><label>Tên</label><input id="stu-name" value="${s.name}"></div>
         <div class="form-row"><label>SĐT</label><input id="stu-phone" value="${s.phone || ''}"></div>
         <div class="form-row"><label>Lớp</label><select id="stu-class">${options}</select></div>
-        <div style="text-align:right"><button class="btn" onclick="saveEditStudent(${id})">Lưu</button></div>`;
+        <div style="text-align:right"><button class="btn" onclick="saveEditStudent('${id}')">Lưu</button></div>`;
       openModal(html);
     });
   });
@@ -278,9 +304,9 @@ async function loadTickets() {
       <td>${t.id}</td>
       <td>${s ? s.name : t.student_id}</td>
       <td>${t.month}</td>
-      <td>${t.is_paid ? 'Đã đóng' : 'Chưa đóng'}</td>
+      <td>${t.is_paid ? 'Đã đóng học phí' : 'Chưa đóng học phí'}</td>
       <td>${t.qr_filename ? `<button class="small-btn btn-view" onclick="openQR('${t.qr_filename}')">Xem</button>` : ''}</td>
-      <td>${t.is_paid ? '' : `<button class="small-btn btn-edit" onclick="markPaid(${t.id})">Đánh dấu đã đóng</button>`}</td>
+      <td>${t.is_paid ? `<button class="small-btn btn-del" onclick="markUnPaid(${t.id})">Đánh dấu chưa đóng</button>` : `<button class="small-btn btn-edit" onclick="markPaid(${t.id})">Đánh dấu đã đóng</button>`}</td>
     </tr>`;
   }
   html += `</tbody></table>`;
@@ -317,6 +343,10 @@ function markPaid(id) {
   fetch(`/api/tickets/${id}/pay`, { method:'POST' }).then(()=> loadTickets());
 }
 
+function markUnPaid(id) {
+  fetch(`/api/tickets/${id}/unpay`, { method:'POST' }).then(()=> loadTickets());
+}
+
 // ------------ ATTENDANCE -------------
 async function loadAttendance() {
   const today = new Date().toISOString().slice(0,10);
@@ -350,7 +380,8 @@ function createAttendance() {
   const student_id = el('att-stu').value;
   const date = el('att-date').value;
   const status = el('att-status').value;
-  if (!student_id || !date) { alert('Thiếu thông tin'); return; }
+  if (!student_id) { alert('Thiếu tên học sinh'); return; }
+  if (!date) { alert('Thiếu ngày điểm danh'); return; }
   fetch('/api/attendance', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({student_id:Number(student_id), date, status}) })
     .then(()=> { closeModal(); loadAttendance(); });
 }

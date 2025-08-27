@@ -155,6 +155,15 @@ def ticket_pay(ticket_id):
     conn.close()
     return jsonify({"ok": True})
 
+@app.route("/api/tickets/<int:ticket_id>/unpay", methods=["POST"])
+def ticket_unpay(ticket_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE tickets SET is_paid=0 WHERE id=?", (ticket_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
 # --- Attendance ---
 @app.route("/api/attendance", methods=["GET", "POST"])
 def attendance_handler():
